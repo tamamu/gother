@@ -9,6 +9,8 @@ import (
 	"os"
 )
 
+var Order = binary.LittleEndian
+
 func ShowUsage() {
 	fmt.Printf("Usage: gother target_directory [output_file]")
 }
@@ -96,19 +98,22 @@ func main() {
 	defer out.Close()
 
 	var data_sizes []int64
-	data_initial := int64(0)
-
-	// 1. Amount of files
-	data_initial += WriteBytesFor(out, int32(len(names)))
+	data_initial := int64(8)
 
 	// Calculate data initial position
 	var bs [][]byte
 	for idx := 0; idx < len(names); idx++ {
-		bs = append(bs, append([]byte(names[idx]), '|'))
-		data_initial += int64(len(bs[idx]) + 1 + 8 + 1 + 8 + 1)
+		bs = append(bs, append([]byte(names[idx]), 0))
+		data_initial += int64(len(bs[idx]) + 8 + 8)
 	}
 
-	// 2. [Filename | initial64bit size64bit]
+	// 1. Header size
+	WriteBytesFor(out, int32(data_initial))
+
+	// 2. Amount of files
+	WriteBytesFor(out, int32(len(names)))
+
+	// 3. [Filename \0 initial64bit size64bit]
 	for idx := 0; idx < len(names); idx++ {
 		WriteBytesFor(out, bs[idx])
 		f, err := os.Open(names[idx])
@@ -124,7 +129,7 @@ func main() {
 		f.Close()
 	}
 
-	// 3. [Data]
+	// 4. [Data]
 	for idx := 0; idx < len(names); idx++ {
 		f, err := os.Open(names[idx])
 		if err != nil {
@@ -135,7 +140,7 @@ func main() {
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %s\n", err)
 		}
-		data = Reverse(data)
+		// data = Reverse(data)
 		WriteBytesFor(out, data)
 		f.Close()
 	}
